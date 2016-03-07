@@ -3,10 +3,32 @@
   <head>
     <title>TadsJS development workbench</title>
     
-    <script src="tadsjs-parser.js"></script>
+    <script src="thirdparty/jquery-1.12.1.min.js"></script>
+    <script src="thirdparty/underscore-min.js"></script>
+
+    <script src="tads3.js"></script>
   </head>
   
   <body>
+    <div id="filechoosersection">
+      <input type="file" name="t3file" id="filechooser"></input>
+    </div>
+  
     <div id="tadsjs"></div>
   </body>
+  
+  <script>
+function handleFileSelect(evt) {
+  var f = evt.target.files[0];
+  var reader = new FileReader();
+
+  reader.onload = function(e) {
+    var rawData = reader.result;
+    tads3(rawData);
+  }
+  reader.readAsBinaryString(f);
+
+};
+document.getElementById('filechooser').addEventListener('change', handleFileSelect, false);
+  </script>
 <html>
