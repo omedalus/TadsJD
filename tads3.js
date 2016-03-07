@@ -19,15 +19,30 @@ var tads3 = function(t3binarydata, divselector) {};
     // If set to true, the block is mandatory to read, and
     // if the parser cannot process it then it must abort.
     VMIMAGE_DBF_MANDATORY: 0x0001,
+    
+    // The number of bytes in a pool subarray.
+    VMIMAGE_POOL_SUBARRAY_SIZE: 4096,
   };
 
   var VM_DATA = {
     // An integer representing the offset in the VM code that
     // represents the program's entry point.
-    entry_point: null
+    entry_point: null,
+    
+    // A collection of 
+    IMAGE_POOLS: {},
   };
-  
-  
+
+  function PoolBackingStore(pageCount, pageSize) {
+    var self = this;
+    self.pageCount = pageCount;
+    self.pageSize = pageSize;
+    
+    self.pageInfo = [];
+    self.pageInfo.length = pageCount;
+  };
+
+
   var parse;
 
   (function() { // Parser IIFE
@@ -38,6 +53,10 @@ var tads3 = function(t3binarydata, divselector) {};
       if (!_data) { 
         return null; 
       }
+      if (n <= 0) {
+        return "";
+      }
+      
       var retval = _data.slice(_curpos, _curpos + n);
       
       if (retval.length != n) {
@@ -69,6 +88,9 @@ var tads3 = function(t3binarydata, divselector) {};
       return retval;
     };
     
+    var readUint8 = function() {
+      return toLittleEndianNumber(readBytes(1));
+    };
     
     var readUint16 = function() {
       return toLittleEndianNumber(readBytes(2));
@@ -114,9 +136,17 @@ var tads3 = function(t3binarydata, divselector) {};
           readEntryPointDataBlock(blockSize);
           break;
           
-        case "CPPG":
-        case "OBJS":
         case "CPDF":
+          readConstantPoolDefinitionDataBlock(blockSize);
+          break;
+
+        case "CPPG":
+          readConstantPoolPageDataBlock(blockSize);
+          break;
+          
+        case "OBJS":
+          //readStaticObjectDataBlock(blockSize);
+
         case "MRES":
         case "MREL":
         case "MCLD":
@@ -143,6 +173,7 @@ var tads3 = function(t3binarydata, divselector) {};
       return moreDataToRead;
     };
 
+    // Load an entry point block ("ENTP")
     var readEntryPointDataBlock = function(blockSize) {
       if (!!VM_DATA.entry_point) {
         throw new TypeError('TADS3 parse error: Entry point already set', 
@@ -166,6 +197,35 @@ var tads3 = function(t3binarydata, divselector) {};
       
       readNullPadding(blockSize, true);
     };
+
+    // Load a Constant Pool Definition block ("CPDF") 
+    var readConstantPoolDefinitionDataBlock = function(blockSize) {
+      var poolId = readUint16() - 1;
+      var pageCount = readUint32();
+      var pageSize = readUint32();
+
+      var pool = new PoolBackingStore(pageCount, pageSize);
+      VM_DATA.IMAGE_POOLS[poolId] = pool;
+
+      var bytesRemaining = blockSize - 10;
+      readNullPadding(blockSize - 10, true);
+    };
+    
+    // Load a Constant Pool Page block ("CPPG") 
+    var readConstantPoolPageDataBlock = function(blockSize) {
+      var poolId = readUint16() - 1;
+      var pageIndex = readUint32();
+      var xorMask = readUint8();
+      
+      var rawPageData = readBytes(blockSize - 7);
+      
+      VM_DATA.IMAGE_POOLS[poolId][pageIndex] = {
+        xorMask: xorMask,
+        pageSize: VM_DATA.IMAGE_POOLS[poolId].pageSize,
+        rawPageData: rawPageData
+      };
+    };
+
     
     
     parse = function(data) {
