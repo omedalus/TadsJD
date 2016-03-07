@@ -29,8 +29,11 @@ var tads3 = function(t3binarydata, divselector) {};
     // represents the program's entry point.
     entry_point: null,
     
-    // A collection of 
-    IMAGE_POOLS: {},
+    // A collection of memory image pools.
+    IMAGE_POOLS: [null, null],
+    
+    // All current active objects, keyed by numerical object ID.
+    OBJECTS: {},
   };
 
   function PoolBackingStore(pageCount, pageSize) {
@@ -117,7 +120,6 @@ var tads3 = function(t3binarydata, divselector) {};
       readNullPadding(32, true);
 
       var fileTimestamp = readBytes(24);
-      console.log(fileTimestamp);
     };
 
     var readDataBlock = function() {
@@ -145,11 +147,21 @@ var tads3 = function(t3binarydata, divselector) {};
           break;
           
         case "OBJS":
-          //readStaticObjectDataBlock(blockSize);
+          readStaticObjectDataBlock(blockSize);
+          break;
 
         case "MRES":
+          readMultimediaResourceBlock(blockSize);
+          break;
+
         case "MREL":
+          readMultimediaResourceLinkBlock(blockSize);
+          break;
+          
         case "MCLD":
+          readMetaclassDependencyBlock(blockSize);
+          break;
+        
         case "FNSD":
         case "SYMD":
         case "SRCF":
@@ -195,7 +207,7 @@ var tads3 = function(t3binarydata, divselector) {};
         blockSize -= 2;
       }
       
-      readNullPadding(blockSize, true);
+      //readNullPadding(blockSize, true);
     };
 
     // Load a Constant Pool Definition block ("CPDF") 
@@ -208,7 +220,7 @@ var tads3 = function(t3binarydata, divselector) {};
       VM_DATA.IMAGE_POOLS[poolId] = pool;
 
       var bytesRemaining = blockSize - 10;
-      readNullPadding(blockSize - 10, true);
+      //readNullPadding(blockSize - 10, true);
     };
     
     // Load a Constant Pool Page block ("CPPG") 
@@ -226,6 +238,53 @@ var tads3 = function(t3binarydata, divselector) {};
       };
     };
 
+    // Load a Static Object block ("OBJS") 
+    var readStaticObjectDataBlock = function(blockSize) {
+      var numObjects = readUint16();
+      var objectMetaclassIndex = readUint16();
+      var objectFlags = readUint16();
+      blockSize -= 6;
+      
+      var isLargeObjects = !!(objectFlags & 1);
+      var isTransientObjects = !!(objectFlags & 2);
+
+      for (var iObj = 0; iObj < numObjects; iObj++) {
+        var objectId = readUint32();
+        blockSize -= 4;
+        var objectSize = isLargeObjects ? readUint32() : readUint16();
+        blockSize -= isLargeObjects ? 4 : 2;
+        
+        var objectData = readBytes(objectSize);
+        blockSize -= objectSize;
+        
+        var theObject = {
+          id: objectId,
+          metaclass: objectMetaclassIndex,
+          objectData: objectData
+        };
+        // TODO: LOAD THE OBJECT BASED ON ITS METACLASS ID.
+        VM_DATA.OBJECTS[objectId] = theObject;
+        // TODO: MARK OBJECT TRANSIENT
+      }
+      //readNullPadding(blockSize, true);
+    };
+
+    // Load a Multimedia Resource block ("MRES") 
+    var readMultimediaResourceBlock = function(blockSize) {
+      console.log('WARNING: Multimedia resources not currently supported.');
+      readBytes(blockSize);
+    };
+    
+    // Load a Multimedia Resource Link block ("MREL") 
+    var readMultimediaResourceLinkBlock = function(blockSize) {
+      console.log('WARNING: Multimedia resources not currently supported.');
+      readBytes(blockSize);
+    };
+    
+    // Load a Metaclass Dependency block ("MCLD") 
+    var readMetaclassDependencyBlock = function(blockSize) {
+      throw "HERE IS WHERE METACLASSES LIVE";
+    };
     
     
     parse = function(data) {
