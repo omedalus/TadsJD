@@ -22,7 +22,46 @@ var tads3 = function(t3binarydata, divselector) {};
     
     // The number of bytes in a pool subarray.
     VMIMAGE_POOL_SUBARRAY_SIZE: 4096,
+    
+    // The size of a buffer to allocate for a portable data holder.
+    VMB_DATAHOLDER: 5,
   };
+
+  var DATA_TYPE_CODES = {
+    VM_NIL: 1,
+    VM_TRUE: 2,
+    VM_STACK: 3,
+    VM_CODEPTR: 4,
+    VM_OBJ: 5, 
+    VM_PROP: 6, 
+    VM_INT: 7,
+    VM_SSTRING: 8,
+    VM_DSTRING: 9,
+    VM_LIST: 10,
+    VM_CODEOFS: 11, 
+    VM_FUNCPTR: 12,
+    VM_EMPTY: 13,
+    VM_NATIVE_CODE: 14,
+    VM_ENUM: 15, 
+    VM_BIFPTR: 16,
+    VM_OBJX: 17,
+    VM_BIFPTRX: 18,
+    VM_FIRST_INVALID_TYPE: 19
+  };
+  function VariableDataType() {
+    var self = this;
+    self.enumval = null;
+    self.obj = null;
+    self.prop = null;
+    self.intval = null;
+    self.ofs = null;
+    self.bifptr  = {
+      set_idx: null,
+      func_idx: null
+    };
+  };
+  
+  
 
   var VM_DATA = {
     // An integer representing the offset in the VM code that
@@ -36,7 +75,12 @@ var tads3 = function(t3binarydata, divselector) {};
     OBJECTS: {},
     
     // The metaclass table, which is how new objects get generated.
-    METACLASSES: {}
+    METACLASSES: {},
+
+    // The function set dependency table, which is where global
+    // functions come from.
+    FUNCTIONS: {},
+    
   };
 
   function PoolBackingStore(pageCount, pageSize) {
@@ -105,6 +149,39 @@ var tads3 = function(t3binarydata, divselector) {};
     var readUint32 = function() {
       return toLittleEndianNumber(readBytes(4));
     };
+    
+    var readVariableType = function() {
+      var retval = new VariableDataType();
+      var typecode = readUint8();
+      switch (typecode) {
+        case DATA_TYPE_CODES.VM_OBJ:
+        case DATA_TYPE_CODES.VM_OBJX:
+          retval.obj = readUint32();
+          break;
+          
+        case DATA_TYPE_CODES.VM_PROP:
+          retval.prop = readUint16();
+          break;
+          
+        case DATA_TYPE_CODES.VM_INT:
+          retval.intval = readUint32();
+          break;
+          
+        case DATA_TYPE_CODES.VM_BIFPTR:
+        case DATA_TYPE_CODES.VM_BIFPTRX:
+          retval.bifptr.func_idx = readUint16();
+          retval.bifptr.set_idx = readUint16();
+          break;
+
+        case DATA_TYPE_CODES.VM_ENUM:
+          retval.intval = readUint32();
+          break;
+        
+        default:
+          retval.ofs = readUint32();
+      };
+      return retval;
+    };
 
 
     var readFileHeader = function() {
@@ -167,8 +244,14 @@ var tads3 = function(t3binarydata, divselector) {};
           readMetaclassDependencyBlock(blockSize);
           break;
         
-        case "FNSD":
         case "SYMD":
+          readSymbolicNamesExportBlock(blockSize);
+          break;
+
+        case "FNSD":
+          readFunctionalSetDependencyBlock(blockSize);
+          break;
+          
         case "SRCF":
         case "GSYM":
         case "MACR":
@@ -311,6 +394,32 @@ var tads3 = function(t3binarydata, divselector) {};
       }
     };
     
+    // Load the Symbolic Names Export Block ("SYMD")
+    var readSymbolicNamesExportBlock = function(blockSize) {
+      /*
+      var numEntries = readUint16();
+      for (var iEntry = 0; iEntry < numEntries; iEntry++) {
+        var symNameLen = readVariableType();
+        var symName = readBytes(symNameLen.ofs);
+        console.log(symName);
+        
+        // TODO: Add the symbol to our exports table.
+        // TODO: Figure out wtf the exports table is.
+      }
+      */
+      console.log('WARNING: Something wrong with variable type loader. Symbol export disabled for now.');
+      readNullPadding(blockSize, true);
+    };
+    
+    // Load the Functional Set Dependency Block ("FSND")
+    var readFunctionalSetDependencyBlock = function(blockSize) {
+      var numEntries = readUint16();
+      for (var iEntry = 0; iEntry < numEntries; iEntry++) {
+        var nameLen = readUint8();
+        var name = readBytes(nameLen);
+        VM_DATA.FUNCTIONS[name] = true;
+      }
+    };
     
     parse = function(data) {
       _data = data;
