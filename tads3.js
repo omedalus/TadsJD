@@ -24,9 +24,33 @@ var tads3 = function(t3binarydata, divselector) {};
         return null; 
       }
       var retval = _data.slice(_curpos, _curpos + n);
-      _curpos += _data.length;
+      
+      if (retval.length != n) {
+        throw new TypeError('TADS3 parse error: hit unexpected EOF', null, _curpos);        
+      }
+      
+      _curpos += retval.length;
       return retval;
     };
+    
+    var readNullPadding = function(n, canHaveNoise) {
+      var padding = readBytes(n);
+      if (!canHaveNoise) {
+        _.each(padding, function(c) {
+          if (c !== '\0') {
+            throw new TypeError('TADS3 parse error: data found in null padding', 
+                null, _curpos);
+          }
+        });
+      }
+      return padding;
+    };
+    
+    var readInt16 = function() {
+      // t3 bytecode is little-endian.
+      var bytes = readBytes(2);
+      return bytes.charCodeAt(0) + (bytes.charCodeAt(1) << 8);
+    }
 
 
     var readFileHeader = function(data, bytepos) {
@@ -34,6 +58,18 @@ var tads3 = function(t3binarydata, divselector) {};
       if (fileSig !== VMIMAGE_SIG) {
         throw new TypeError('TADS3 parse error: file signature invalid.', null, _curpos);
       }
+      
+      var fileVersionNum = readInt16();
+
+      if (fileVersionNum !== 1) {
+        throw new TypeError('TADS3 parse error: does not support version ' + 
+            fileVersionNum, null, _curpos);
+      }
+
+      readNullPadding(32, true);
+
+      var fileTimestamp = readBytes(24);
+      console.log(fileTimestamp);
     };
     
     parse = function(data) {
