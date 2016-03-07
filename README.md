@@ -1,2 +1,5 @@
-# TadsJD
+# TadsJS
 A port of Michael Roberts's Text Adventure Development System VM to a browser-based platform.
+
+The TADS engine (http://tads.org/) has been in active development for three decades, and supports a library of tens of thousands of independently written games. Unfortunately, these games cannot easily be played in a browser -- a particularly disappointing state of affairs given the current resurgence of text-based gaming. The TADS interpreter was originally written with the intent of being run on a command line, and its current web support involves running the interpreter executable on a web server and marshalling the console IO to a browser session. This thin-client architecture made sense in the late 90s/early 2000s, but modern desktop and mobile browsers have more than ample computing power at their disposal to run the TADS interpreter natively. Thus, this TadsJS project is an attempt to write a bytecode interpreter for TADS3, the latest and most popular version of TADS, so that people can quickly and easily play both new and old TADS games without the need for a server-side setup.
+
