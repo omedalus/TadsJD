@@ -34,6 +34,9 @@ var tads3 = function(t3binarydata, divselector) {};
     
     // All current active objects, keyed by numerical object ID.
     OBJECTS: {},
+    
+    // The metaclass table, which is how new objects get generated.
+    METACLASSES: {}
   };
 
   function PoolBackingStore(pageCount, pageSize) {
@@ -63,7 +66,7 @@ var tads3 = function(t3binarydata, divselector) {};
       var retval = _data.slice(_curpos, _curpos + n);
       
       if (retval.length != n) {
-        throw new TypeError('TADS3 parse error: hit unexpected EOF', null, _curpos);        
+        throw new TypeError('TADS3 bytecode parse error: hit unexpected EOF', null, _curpos);        
       }
       
       _curpos += retval.length;
@@ -75,7 +78,7 @@ var tads3 = function(t3binarydata, divselector) {};
       if (!canHaveNoise) {
         _.each(padding, function(c) {
           if (c !== '\0') {
-            throw new TypeError('TADS3 parse error: data found in null padding', 
+            throw new TypeError('TADS3 bytecode parse error: data found in null padding', 
                 null, _curpos);
           }
         });
@@ -107,13 +110,13 @@ var tads3 = function(t3binarydata, divselector) {};
     var readFileHeader = function() {
       var fileSig = readBytes(CONSTANTS.VMIMAGE_SIG.length);
       if (fileSig !== CONSTANTS.VMIMAGE_SIG) {
-        throw new TypeError('TADS3 parse error: file signature invalid.', null, _curpos);
+        throw new TypeError('TADS3 bytecode parse error: file signature invalid.', null, _curpos);
       }
       
       var fileVersionNum = readUint16();
 
       if (fileVersionNum !== 1) {
-        throw new TypeError('TADS3 parse error: does not support version ' + 
+        throw new TypeError('TADS3 bytecode parse error: does not support version ' + 
             fileVersionNum, null, _curpos);
       }
 
@@ -128,6 +131,8 @@ var tads3 = function(t3binarydata, divselector) {};
       var flags = readUint16();
       
       var moreDataToRead = true;
+
+      console.log(blockTypeCode);
       
       switch (blockTypeCode) {
         case "EOF":
@@ -173,10 +178,10 @@ var tads3 = function(t3binarydata, divselector) {};
           var isMandatory = flags & CONSTANTS.VMIMAGE_DBF_MANDATORY;
           isMandatory = false; // TODO: REMOVE THIS!!! DEVELOPMENT PURPOSES ONLY!!
           if (isMandatory) {
-            throw new TypeError('TADS3 parse error: unknown data block type: ' + 
+            throw new TypeError('TADS3 bytecode parse error: unknown data block type: ' + 
                 blockTypeCode, null, _curpos);
           } else {
-            console.log('TADS3 parse warning: unknown data block type: ' + blockTypeCode);
+            console.log('TADS3 bytecode parse warning: unknown data block type: ' + blockTypeCode);
             readNullPadding(blockSize, true);
           }
         }
@@ -188,7 +193,7 @@ var tads3 = function(t3binarydata, divselector) {};
     // Load an entry point block ("ENTP")
     var readEntryPointDataBlock = function(blockSize) {
       if (!!VM_DATA.entry_point) {
-        throw new TypeError('TADS3 parse error: Entry point already set', 
+        throw new TypeError('TADS3 bytecode parse error: Entry point already set', 
             null, _curpos);
       }
 
@@ -282,8 +287,28 @@ var tads3 = function(t3binarydata, divselector) {};
     };
     
     // Load a Metaclass Dependency block ("MCLD") 
+    // This initially populates the metaclass table.
     var readMetaclassDependencyBlock = function(blockSize) {
-      throw "HERE IS WHERE METACLASSES LIVE";
+      var numMetaclasses = readUint16();
+      blockSize -= 2;
+      
+      for (iMetaclass = 0; iMetaclass < numMetaclasses; iMetaclass++) {
+        var recordSize = readUint16();
+        var nameLength = readUint8();
+        var name = readBytes(nameLength);
+        console.log('Loading metaclass ' + name);
+
+        var numProperties = readUint16();
+        var lenProperties = readUint16();
+        for (var iProperty = 0; iProperty < numProperties; iProperty++) {
+          var propertyValue = readUint16();
+          if (lenProperties > 2) {
+            readNullPadding(lenProperties - 2, true);
+          }
+        }
+        
+        // TODO: FIGURE OUT WTF IS GOING ON WITH PROPERTIES.
+      }
     };
     
     
