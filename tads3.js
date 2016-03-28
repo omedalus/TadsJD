@@ -25,6 +25,9 @@ var tads3 = function(t3binarydata, divselector) {};
     
     // The size of a buffer to allocate for a portable data holder.
     VMB_DATAHOLDER: 5,
+    
+    // The size of a static initializer. Used in the SINI block.
+    VM_STATIC_INIT_PAGE_MAX: 1000,
   };
 
   var DATA_TYPE_CODES = {
@@ -68,6 +71,12 @@ var tads3 = function(t3binarydata, divselector) {};
     // represents the program's entry point.
     entry_point: null,
     
+    // Static data code offset. Set in the SINI block.
+    staticCodeOffset: null,
+    
+    // Static data initialization pages. Set in the SINI block.
+    staticPageData: [],
+    
     // A collection of memory image pools.
     IMAGE_POOLS: [null, null],
     
@@ -80,6 +89,7 @@ var tads3 = function(t3binarydata, divselector) {};
     // The function set dependency table, which is where global
     // functions come from.
     FUNCTIONS: {},
+    
     
   };
 
@@ -252,14 +262,16 @@ var tads3 = function(t3binarydata, divselector) {};
           readFunctionalSetDependencyBlock(blockSize);
           break;
           
+        case "SINI":
+          readStaticInitializerBlock(blockSize);
+          break;
+
         case "SRCF":
         case "GSYM":
         case "MACR":
         case "MHLS":
-        case "SINI":
         default: {
           var isMandatory = flags & CONSTANTS.VMIMAGE_DBF_MANDATORY;
-          isMandatory = false; // TODO: REMOVE THIS!!! DEVELOPMENT PURPOSES ONLY!!
           if (isMandatory) {
             throw new TypeError('TADS3 bytecode parse error: unknown data block type: ' + 
                 blockTypeCode, null, _curpos);
@@ -419,6 +431,26 @@ var tads3 = function(t3binarydata, divselector) {};
         var name = readBytes(nameLen);
         VM_DATA.FUNCTIONS[name] = true;
       }
+    };    
+    
+    // Load the Static Initializer Block ("SINI")
+    var readStaticInitializerBlock = function(blockSize) {
+      var headerSize = readUint32();
+      VM_DATA.staticCodeOffset = readUint32();
+      var initializerCount = readUint32();
+      
+      // Skip remaining header, if any.
+      if (headerSize > 12) {
+        readBytes(headerSize - 12);
+      }
+      blockSize -= headerSize;
+      
+      var byteCount = initializerCount * 6;
+      
+      VM_DATA.staticPageData = readBytes(byteCount);
+      blockSize -= byteCount;
+      
+      readBytes(blockSize);
     };
     
     parse = function(data) {
